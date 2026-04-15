@@ -13,7 +13,7 @@
         <div class="hero-copy">
           <p class="eyebrow">Depop resale intelligence</p>
           <h1>Depop Insights</h1>
-          <p class="subtitle">Sharper pricing guidance for real listings, with beta sell-speed reads layered on top.</p>
+          <p class="subtitle">Simple pricing and sell-speed guidance for live listings.</p>
         </div>
         <div class="hero-orb"></div>
       </section>
@@ -30,13 +30,12 @@
       <section id="results" class="results hidden">
         <div class="hero-card">
           <div class="hero-card-copy">
-            <p class="card-kicker">Recommended ask</p>
+            <p class="card-kicker">Suggested price</p>
             <div id="priceRange" class="price-hero">--</div>
-            <p id="pricingSummary" class="hero-card-copy-text"></p>
           </div>
           <div class="hero-card-side">
-            <p id="modelBadge" class="model-badge">--</p>
-            <p class="side-label">Sell-speed beta</p>
+            <p id="modeLabel" class="side-mode">Mode</p>
+            <p class="side-label">Sell score</p>
             <div id="fastSellScore" class="score-value">--</div>
             <p id="probabilityText" class="score-meta"></p>
             <div class="mini-meter">
@@ -47,57 +46,29 @@
 
         <div class="snapshot-grid">
           <article class="snapshot-card">
-            <p class="metric-label">Beta days-to-sell</p>
+            <p class="metric-label">ETA</p>
             <p id="daysToSell" class="metric-value">--</p>
           </article>
           <article class="snapshot-card">
-            <p class="metric-label">Pricing stance</p>
-            <p id="pricingRead" class="metric-value">--</p>
+            <p class="metric-label">Best next move</p>
+            <p id="topSuggestion" class="metric-value metric-value-compact">--</p>
           </article>
-        </div>
-
-        <div class="insight-banner">
-          <p class="insight-banner-label">At a glance</p>
-          <p id="insightBannerText" class="insight-banner-text"></p>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <h2>Why It Landed Here</h2>
-            <p class="panel-caption">Top signals the model and rules liked</p>
-          </div>
-          <ul id="factors"></ul>
         </div>
 
         <div class="panel-grid">
           <div class="panel panel-mini">
             <div class="panel-header">
-              <h2>Strengths</h2>
+              <h2>Good</h2>
             </div>
             <ul id="strengths"></ul>
           </div>
 
           <div class="panel panel-mini">
             <div class="panel-header">
-              <h2>Watchouts</h2>
+              <h2>Watch</h2>
             </div>
             <ul id="weaknesses"></ul>
           </div>
-
-          <div class="panel panel-mini">
-            <div class="panel-header">
-              <h2>Try Next</h2>
-            </div>
-            <ul id="suggestions"></ul>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <h2>Model Notes</h2>
-            <p class="panel-caption">What is trained today versus estimated</p>
-          </div>
-          <ul id="notes"></ul>
         </div>
       </section>
     </main>

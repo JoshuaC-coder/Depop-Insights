@@ -1,22 +1,134 @@
+function cleanText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+
 function textFromSelectors(selectors) {
   for (const selector of selectors) {
-    const node = document.querySelector(selector);
-    if (node && node.textContent) {
-      return node.textContent.trim();
+    const nodes = document.querySelectorAll(selector);
+    for (const node of nodes) {
+      const text = cleanText(node.textContent);
+      if (text) {
+        return text;
+      }
     }
   }
   return "";
 }
 
+function allTextsFromSelectors(selectors, maxItems = 10) {
+  const seen = new Set();
+  const values = [];
+  for (const selector of selectors) {
+    const nodes = document.querySelectorAll(selector);
+    for (const node of nodes) {
+      const text = cleanText(node.textContent);
+      if (text && !seen.has(text)) {
+        seen.add(text);
+        values.push(text);
+        if (values.length >= maxItems) return values;
+      }
+    }
+  }
+  return values;
+}
+
 function parsePrice(rawText) {
-  const match = rawText.replace(/,/g, "").match(/(\d+(\.\d+)?)/);
+  const text = cleanText(rawText).replace(/,/g, "");
+  const match = text.match(/(\d+(\.\d+)?)/);
   return match ? Number(match[1]) : null;
 }
 
+function normalizeBrand(rawBrand) {
+  if (!rawBrand) return "";
+  const cleaned = cleanText(rawBrand).replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
+  if (!cleaned) return "";
+  return cleaned
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function findLabeledValue(labels, options = {}) {
+  const root = options.root || document.body;
+  const maxLength = options.maxLength || 60;
+  const bodyText = cleanText(root.innerText || "");
+  for (const label of labels) {
+    const regex = new RegExp(`${label}\\s*[:\\-]?\\s*([^\\n|•]+)`, "i");
+    const match = bodyText.match(regex);
+    if (match) {
+      const candidate = cleanText(match[1]);
+      if (candidate && candidate.length <= maxLength) {
+        return candidate;
+      }
+    }
+  }
+  return "";
+}
+
+function detectBrandFromPage() {
+  const directBrand = textFromSelectors([
+    "[data-testid='listing-brand']",
+    "[data-testid='brand']",
+    "[href*='/brand/']",
+    "[href*='/designer/']",
+    "[class*='brand'] a",
+    "[class*='Brand'] a",
+    "[class*='brand']",
+    "[class*='Brand']"
+  ]);
+  if (directBrand && directBrand.length <= 40) {
+    return normalizeBrand(directBrand);
+  }
+
+  const labeledBrand = findLabeledValue(["brand", "designer", "label"]);
+  return normalizeBrand(labeledBrand);
+}
+
 function detectBrand(title, description) {
+  const pageBrand = detectBrandFromPage();
+  if (pageBrand) return pageBrand;
+
   const combined = `${title} ${description}`.toLowerCase();
-  const brands = ["nike", "adidas", "carhartt", "stussy", "supreme", "champion", "essentials", "gap", "hollister", "abercrombie"];
-  return brands.find((brand) => combined.includes(brand)) || "";
+  const brands = [
+    "nike",
+    "adidas",
+    "carhartt",
+    "stussy",
+    "supreme",
+    "champion",
+    "essentials",
+    "fear of god",
+    "lululemon",
+    "aritzia",
+    "patagonia",
+    "the north face",
+    "brandy melville",
+    "levi's",
+    "levis",
+    "dickies",
+    "gap",
+    "hollister",
+    "abercrombie",
+    "zara",
+    "uniqlo",
+    "diesel",
+    "ed hardy",
+    "bape",
+    "essentials",
+    "juicy couture",
+    "true religion"
+  ];
+
+  for (const brand of brands) {
+    if (combined.includes(brand)) {
+      return normalizeBrand(brand === "levis" ? "Levi's" : brand);
+    }
+  }
+  return "";
 }
 
 function inferItemType(title, description, categoryGuess) {
@@ -48,17 +160,101 @@ function collectImageUrls() {
     .slice(0, 6);
 }
 
-function scrapeListing() {
-  const title = textFromSelectors(["h1", "[data-testid='listing-title']", "[class*='Title']"]);
-  const description = textFromSelectors([
-    "[data-testid='listing-description']",
-    "[class*='description']",
-    "section p"
+function extractTitle() {
+  return textFromSelectors([
+    "[data-testid='listing-title']",
+    "main h1",
+    "h1",
+    "[class*='title']",
+    "[class*='Title']"
   ]);
-  const priceText = textFromSelectors(["[data-testid='listing-price']", "[class*='price']", "main span"]);
-  const shippingText = textFromSelectors(["[data-testid='shipping-price']", "[class*='shipping']"]);
-  const likesText = textFromSelectors(["[data-testid='likes-count']", "[class*='likes']"]);
-  const sellerText = textFromSelectors(["[data-testid='shop-name']", "[class*='seller']"]);
+}
+
+function extractDescription() {
+  const direct = textFromSelectors([
+    "[data-testid='listing-description']",
+    "[class*='description'] p",
+    "[class*='Description'] p",
+    "main section p"
+  ]);
+  if (direct) return direct;
+
+  const paragraphs = allTextsFromSelectors(["main p", "article p", "section p"], 8)
+    .filter((text) => text.length > 20 && !text.match(/^\$\d/));
+  return paragraphs.join(" ").slice(0, 1200);
+}
+
+function extractPriceText() {
+  const candidates = allTextsFromSelectors([
+    "[data-testid='listing-price']",
+    "[class*='price']",
+    "[class*='Price']",
+    "main span",
+    "main div"
+  ], 40);
+  return candidates.find((text) => /[$£€]\s?\d|\d+(\.\d{2})?/.test(text)) || "";
+}
+
+function extractShippingText() {
+  const direct = textFromSelectors([
+    "[data-testid='shipping-price']",
+    "[class*='shipping']",
+    "[class*='Shipping']"
+  ]);
+  if (direct) return direct;
+  return findLabeledValue(["shipping", "delivery", "postage"]);
+}
+
+function extractSize() {
+  const direct = textFromSelectors([
+    "[data-testid='listing-size']",
+    "[class*='size']",
+    "[class*='Size']"
+  ]);
+  if (direct && direct.length <= 30) return direct;
+  return findLabeledValue(["size"]);
+}
+
+function extractCondition() {
+  const direct = textFromSelectors([
+    "[data-testid='listing-condition']",
+    "[class*='condition']",
+    "[class*='Condition']"
+  ]);
+  if (direct && direct.length <= 50) return direct;
+  return findLabeledValue(["condition"]);
+}
+
+function extractColor() {
+  const direct = textFromSelectors([
+    "[data-testid='listing-color']",
+    "[class*='colour']",
+    "[class*='color']",
+    "[class*='Colour']",
+    "[class*='Color']"
+  ]);
+  if (direct && direct.length <= 40) return direct;
+  return findLabeledValue(["color", "colour"]);
+}
+
+function extractLikesText() {
+  const direct = textFromSelectors([
+    "[data-testid='likes-count']",
+    "[class*='likes']",
+    "[class*='Likes']"
+  ]);
+  if (direct) return direct;
+  return findLabeledValue(["likes", "saves", "favorites"], { maxLength: 12 });
+}
+
+function scrapeListing() {
+  const title = extractTitle();
+  const description = extractDescription();
+  const priceText = extractPriceText();
+  const shippingText = extractShippingText();
+  const likesText = extractLikesText();
+  const brand = detectBrand(title, description);
+  const category = inferCategory(title, description);
 
   const listing = {
     title,
@@ -66,14 +262,14 @@ function scrapeListing() {
     price: parsePrice(priceText),
     shipping_price: parsePrice(shippingText) || 0,
     total_buyer_cost: (parsePrice(priceText) || 0) + (parsePrice(shippingText) || 0),
-    brand: detectBrand(title, description),
-    category: inferCategory(title, description),
-    hoodie_type: inferItemType(title, description, inferCategory(title, description)),
-    size: textFromSelectors(["[data-testid='listing-size']", "[class*='size']"]),
-    condition: textFromSelectors(["[data-testid='listing-condition']", "[class*='condition']"]),
-    color: textFromSelectors(["[data-testid='listing-color']", "[class*='colour']", "[class*='color']"]),
+    brand,
+    category,
+    hoodie_type: inferItemType(title, description, category),
+    size: extractSize(),
+    condition: extractCondition(),
+    color: extractColor(),
     likes: parsePrice(likesText),
-    comments_count: 0,
+    comments_count: null,
     seller_rating: null,
     seller_followers: null,
     discounted: /sale|discount|reduced/i.test(document.body.innerText),
@@ -81,15 +277,31 @@ function scrapeListing() {
     sold_date: null,
     image_urls: collectImageUrls(),
     sold_status: /sold/i.test(document.body.innerText),
-    source_url: window.location.href,
-    seller_name: sellerText
+    source_url: window.location.href
   };
-  return listing;
+
+  const debug = {
+    title,
+    description_preview: description.slice(0, 180),
+    priceText,
+    shippingText,
+    likesText,
+    extracted_brand: brand,
+    extracted_size: listing.size,
+    extracted_condition: listing.condition,
+    extracted_color: listing.color,
+    category_guess: category
+  };
+
+  console.log("[Depop Insights] Scraped listing payload", listing);
+  console.log("[Depop Insights] Scrape debug", debug);
+  return { listing, debug };
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "SCRAPE_LISTING") {
-    sendResponse({ ok: true, listing: scrapeListing() });
+    const { listing, debug } = scrapeListing();
+    sendResponse({ ok: true, listing, debug });
   }
   return true;
 });

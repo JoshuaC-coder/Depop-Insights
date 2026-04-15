@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,6 +22,7 @@ app.add_middleware(
 )
 
 model_bundle: ModelBundle = load_models()
+logger = logging.getLogger("depop_insights.api")
 
 
 @app.get("/health")
@@ -32,4 +35,5 @@ def health() -> dict[str, str]:
 
 @app.post("/predict", response_model=PredictResponse)
 def predict(listing: ListingInput) -> PredictResponse:
+    logger.warning("Parsed /predict input: %s", listing.model_dump())
     return predict_listing(listing, model_bundle)
